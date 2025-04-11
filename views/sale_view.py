@@ -6,7 +6,7 @@ import tkinter as tk
 from tkinter import ttk, messagebox
 import os
 import sys
-from datetime import datetime
+from datetime import datetime, timedelta
 
 # Add the parent directory to the path so we can import our modules
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
@@ -324,7 +324,7 @@ class SaleView:
         self.start_date_var = tk.StringVar()
         
         # Set default to 30 days ago
-        start_date = (datetime.now() - datetime.timedelta(days=30)).strftime("%Y-%m-%d")
+        start_date = (datetime.now() - timedelta(days=30)).strftime("%Y-%m-%d")
         self.start_date_var.set(start_date)
         
         ttk.Entry(filter_grid, textvariable=self.start_date_var, width=12).grid(row=0, column=1, sticky=tk.W, padx=5, pady=2)
@@ -1129,7 +1129,7 @@ class SaleView:
         Clear sales history filters.
         """
         # Set default dates (30 days ago to today)
-        start_date = (datetime.now() - datetime.timedelta(days=30)).strftime("%Y-%m-%d")
+        start_date = (datetime.now() - timedelta(days=30)).strftime("%Y-%m-%d")
         self.start_date_var.set(start_date)
         self.end_date_var.set(datetime.now().strftime("%Y-%m-%d"))
         
