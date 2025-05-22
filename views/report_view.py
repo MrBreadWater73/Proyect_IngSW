@@ -241,6 +241,26 @@ class ReportView:
             show="headings"
         )
         
+        # Sales treeview for category data
+        self.sales_tree = ttk.Treeview(
+            self.details_frame,
+            columns=("Categoría", "Ventas", "Unidades", "Total", "Porcentaje"),
+            show="headings"
+        )
+        
+        # Configure sales tree
+        self.sales_tree.heading("Categoría", text="Categoría")
+        self.sales_tree.heading("Ventas", text="Ventas")
+        self.sales_tree.heading("Unidades", text="Unidades")
+        self.sales_tree.heading("Total", text="Total")
+        self.sales_tree.heading("Porcentaje", text="Porcentaje")
+        
+        self.sales_tree.column("Categoría", width=150)
+        self.sales_tree.column("Ventas", width=80, anchor=tk.CENTER)
+        self.sales_tree.column("Unidades", width=80, anchor=tk.CENTER)
+        self.sales_tree.column("Total", width=100, anchor=tk.E)
+        self.sales_tree.column("Porcentaje", width=80, anchor=tk.CENTER)
+        
         # Scrollbar for details tree
         details_scrollbar = ttk.Scrollbar(self.details_frame, orient="vertical", command=self.details_tree.yview)
         self.details_tree.configure(yscrollcommand=details_scrollbar.set)
@@ -248,6 +268,9 @@ class ReportView:
         # Pack the tree and scrollbar
         self.details_tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=5, pady=5)
         details_scrollbar.pack(side=tk.RIGHT, fill=tk.Y, pady=5)
+        
+        # Initially hide the sales tree (will be shown when needed)
+        self.sales_tree.pack_forget()
         
     def setup_inventory_tab(self):
         """
@@ -517,87 +540,66 @@ class ReportView:
         Args:
             report_data: Dictionary with sales report data
         """
-        # Update summary values
-        self.total_sales_var.set(str(report_data["totals"]["sale_count"]))
-        self.total_amount_var.set(f"${report_data['totals']['total_amount']:.2f}")
-        
-        if report_data["totals"]["sale_count"] > 0:
-            self.average_sale_var.set(f"${report_data['totals']['average_sale']:.2f}")
-        else:
+        if not report_data:
+            # Show message when no data is available
+            self.total_sales_var.set("0")
+            self.total_amount_var.set("$0.00")
             self.average_sale_var.set("$0.00")
             
-        # Update payment methods tree
-        for item in self.payment_tree.get_children():
-            self.payment_tree.delete(item)
+            # Clear and hide trees
+            for item in self.sales_tree.get_children():
+                self.sales_tree.delete(item)
+            for item in self.details_tree.get_children():
+                self.details_tree.delete(item)
+                
+            # Show message in chart container
+            for widget in self.chart_container.winfo_children():
+                widget.destroy()
             
-        for payment in report_data["payment_methods"]:
-            self.payment_tree.insert(
+            message = ttk.Label(
+                self.chart_container,
+                text="No hay datos de ventas disponibles",
+                font=("Arial", 14),
+                anchor=tk.CENTER
+            )
+            message.pack(fill=tk.BOTH, expand=True)
+            return
+            
+        # Update summary values
+        totals = report_data.get('totals', {})
+        sale_count = totals.get('sale_count', 0)
+        total_amount = totals.get('total_amount', 0)
+        average_sale = totals.get('average_sale', 0)
+        
+        self.total_sales_var.set(str(sale_count))
+        self.total_amount_var.set(f"${total_amount:.2f}" if total_amount is not None else "$0.00")
+        self.average_sale_var.set(f"${average_sale:.2f}" if average_sale is not None else "$0.00")
+        
+        # Show sales tree and hide details tree
+        self.details_tree.pack_forget()
+        self.sales_tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=5, pady=5)
+        
+        # Clear the sales tree
+        for item in self.sales_tree.get_children():
+            self.sales_tree.delete(item)
+            
+        # Add categories to tree
+        for category in report_data.get('category_sales', []):
+            percentage = (category.get('total_sales', 0) / total_amount * 100) if total_amount and total_amount > 0 else 0
+            self.sales_tree.insert(
                 "",
                 "end",
                 values=(
-                    payment["method"],
-                    payment["count"],
-                    f"${payment['total']:.2f}",
-                    f"{payment['percentage']:.1f}%"
+                    category.get('category', 'Sin categoría'),
+                    category.get('sale_count', 0),
+                    category.get('units_sold', 0),
+                    f"${category.get('total_sales', 0):.2f}",
+                    f"{percentage:.1f}%"
                 )
             )
             
-        # Update details tree - set up columns for period data
-        self.details_tree["columns"] = ("Periodo", "Ventas", "Total", "Promedio")
-        self.details_tree.heading("Periodo", text="Periodo")
-        self.details_tree.heading("Ventas", text="Ventas")
-        self.details_tree.heading("Total", text="Total")
-        self.details_tree.heading("Promedio", text="Promedio")
-        
-        self.details_tree.column("Periodo", width=120)
-        self.details_tree.column("Ventas", width=80, anchor=tk.CENTER)
-        self.details_tree.column("Total", width=100, anchor=tk.E)
-        self.details_tree.column("Promedio", width=100, anchor=tk.E)
-        
-        # Clear the details tree
-        for item in self.details_tree.get_children():
-            self.details_tree.delete(item)
-            
-        # Get period sales data
-        try:
-            # Get appropriate period type
-            start_date = report_data["period"]["start_date"]
-            end_date = report_data["period"]["end_date"]
-            
-            # Calculate date difference
-            start_dt = datetime.fromisoformat(start_date.split("T")[0])
-            end_dt = datetime.fromisoformat(end_date.split("T")[0])
-            days_diff = (end_dt - start_dt).days
-            
-            # Choose appropriate period grouping
-            if days_diff <= 31:
-                period_type = "daily"
-            elif days_diff <= 90:
-                period_type = "weekly"
-            else:
-                period_type = "monthly"
-                
-            # Get sales by period
-            period_data = self.report_controller.get_sales_by_period(period_type, start_date, end_date)
-            
-            # Add to details tree
-            for period in period_data:
-                self.details_tree.insert(
-                    "",
-                    "end",
-                    values=(
-                        period["period_label"],
-                        period["sale_count"],
-                        f"${period['total_sales']:.2f}",
-                        f"${period['average_sale']:.2f}" if period["sale_count"] > 0 else "$0.00"
-                    )
-                )
-                
-            # Create chart
-            self.create_sales_chart(period_data, "Ventas por Periodo")
-                
-        except Exception as e:
-            messagebox.showerror("Error", f"Error al cargar datos por periodo: {str(e)}")
+        # Create chart
+        self.create_sales_chart(report_data.get('category_sales', []), "Ventas por Categoría")
     
     def display_category_sales(self, category_data, start_date, end_date):
         """
@@ -1095,42 +1097,65 @@ class ReportView:
             )
             
     # Chart creation methods
-    def create_sales_chart(self, period_data, title):
+    def create_sales_chart(self, data, title):
         """
-        Create a line chart for sales by period.
+        Create a bar chart for sales data.
         
         Args:
-            period_data: List of dictionaries with period sales data
+            data: List of dictionaries with sales data
             title: Chart title
         """
         # Clear previous chart
         for widget in self.chart_container.winfo_children():
             widget.destroy()
             
+        if not data:
+            message = ttk.Label(
+                self.chart_container,
+                text="No hay datos disponibles para el gráfico",
+                font=("Arial", 12),
+                anchor=tk.CENTER
+            )
+            message.pack(fill=tk.BOTH, expand=True)
+            return
+            
         # Create figure and axis
-        fig, ax = plt.subplots(figsize=(8, 5))
+        fig, ax = plt.subplots(figsize=(8, 6))
         
-        # Extract data
-        periods = [p["period_label"] for p in period_data]
-        sales = [p["total_sales"] for p in period_data]
+        # Extract data for plotting
+        categories = [item.get('category', 'Sin categoría') for item in data]
+        values = [item.get('total_sales', 0) for item in data]
         
-        # Create line chart
-        ax.plot(periods, sales, marker='o', linestyle='-', color='blue')
+        # Create bars
+        bars = ax.bar(categories, values)
         
-        # Set labels and title
-        ax.set_xlabel('Periodo')
-        ax.set_ylabel('Ventas ($)')
+        # Customize chart
         ax.set_title(title)
+        ax.set_xlabel("Categorías")
+        ax.set_ylabel("Ventas ($)")
         
-        # Rotate x-axis labels for better visibility
+        # Rotate x-axis labels for better readability
         plt.xticks(rotation=45, ha='right')
         
-        # Tight layout to ensure everything fits
-        fig.tight_layout()
+        # Add value labels on top of bars
+        for bar in bars:
+            height = bar.get_height()
+            ax.text(
+                bar.get_x() + bar.get_width()/2.,
+                height,
+                f'${height:,.2f}',
+                ha='center',
+                va='bottom'
+            )
         
-        # Add to container
+        # Adjust layout to prevent label cutoff
+        plt.tight_layout()
+        
+        # Create canvas
         canvas = FigureCanvasTkAgg(fig, master=self.chart_container)
         canvas.draw()
+        
+        # Pack canvas
         canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
     
     def create_category_chart(self, category_data, title):

@@ -1331,7 +1331,7 @@ class ProductView:
         # Create a new dialog
         dialog = tk.Toplevel(self.parent)
         dialog.title("Ajustar Stock")
-        dialog.geometry("400x200")
+        dialog.geometry("400x300")
         dialog.transient(self.parent)
         dialog.grab_set()
         
