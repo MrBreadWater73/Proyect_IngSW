@@ -10,6 +10,7 @@ Integrantes del Equipo:
 - Jesús Antonio Torres Contreras
 
 Asesor: Arreola González Mauricio Rodolfo
+
 Este sistema de gestión está diseñado específicamente para tiendas de ropa, permitiendo administrar de manera integral todos los aspectos del negocio: productos, inventario, clientes, ventas, proveedores y reportes.
 
 ## Requisitos del Sistema
